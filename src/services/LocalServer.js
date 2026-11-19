@@ -1,4 +1,6 @@
 import { Platform } from 'react-native';
+import { Buffer } from 'buffer';
+import * as FileSystem from 'expo-file-system';
 
 let TcpSocket = null;
 if (Platform.OS === 'android' || Platform.OS === 'ios') {
@@ -16,7 +18,7 @@ export class LocalServer {
     this.file = null;
     this.connectedClients = 0;
     this.onClientConnected = null;
-    this.onProgress = null;
+    this.isElectron = typeof window !== 'undefined' && (window.require || (window.process && window.process.type));
   }
 
   setFile(file) {
@@ -129,128 +131,159 @@ export class LocalServer {
   async start(port = 8090) {
     this.port = port;
 
-    // Desktop (Node.js / Electron)
-    if (typeof window !== 'undefined' && window.require) {
+    // 1. Electron Desktop
+    if (this.isElectron) {
       try {
-        const http = window.require('http');
-        const fs = window.require('fs');
-
-        this.server = http.createServer((req, res) => {
-          if (!this.file) {
-            res.writeHead(404);
-            res.end('No file selected');
-            return;
-          }
-
-          if (req.url === '/' || req.url === '/index.html') {
-            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-            res.end(this.generateHtmlPage(this.file));
-            return;
-          }
-
-          if (req.url === '/info') {
-            res.writeHead(200, {
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-            });
-            res.end(JSON.stringify({
-              name: this.file.name,
-              size: this.file.size,
-              type: this.file.type,
-            }));
-            return;
-          }
-
-          if (req.url === '/download' || req.url === '/file') {
-            this.connectedClients++;
-            if (this.onClientConnected) this.onClientConnected(this.connectedClients);
-
-            res.writeHead(200, {
-              'Content-Type': 'application/octet-stream',
-              'Content-Disposition': `attachment; filename="${encodeURIComponent(this.file.name)}"`,
-              'Content-Length': this.file.size,
-              'Access-Control-Allow-Origin': '*',
-            });
-
-            if (this.file.path && fs.existsSync(this.file.path)) {
-              const stream = fs.createReadStream(this.file.path);
-              stream.pipe(res);
-            } else if (this.file.data) {
-              res.end(this.file.data);
-            } else {
-              res.end('File buffer not found');
-            }
-          }
+        const { ipcRenderer } = window.require('electron');
+        const res = await ipcRenderer.invoke('start-share-server', {
+          name: this.file.name,
+          size: this.file.size,
+          path: this.file.path,
         });
 
-        return new Promise((resolve) => {
-          this.server.listen(port, '0.0.0.0', () => {
-            resolve(port);
-          });
+        ipcRenderer.on('client-connected', (event, count) => {
+          this.connectedClients = count;
+          if (this.onClientConnected) this.onClientConnected(count);
         });
+
+        return res.port || port;
       } catch (err) {
-        console.error('Failed to start Node http server:', err);
+        console.error('Electron IPC start-share-server error:', err);
       }
     }
 
-    // Mobile (React Native with react-native-tcp-socket)
+    // 2. Mobile (Android / iOS with react-native-tcp-socket)
     if (TcpSocket) {
       return new Promise((resolve, reject) => {
         try {
           this.server = TcpSocket.createServer(socket => {
-            socket.on('data', data => {
-              const reqStr = data.toString('utf8');
-              const firstLine = reqStr.split('\r\n')[0] || '';
-              const [method, url] = firstLine.split(' ');
+            socket.on('error', err => {
+              console.warn('Socket connection error caught:', err?.message || err);
+            });
 
-              if (!this.file) {
+            socket.on('data', async data => {
+              try {
+                const reqStr = data ? data.toString('utf8') : '';
+                const firstLine = reqStr.split('\r\n')[0] || '';
+                const parts = firstLine.split(' ');
+                const method = (parts[0] || 'GET').toUpperCase();
+                const rawUrl = parts[1] || '/';
+                const urlPath = rawUrl.split('?')[0];
+
+                if (!this.file) {
+                  socket.write('HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n');
+                  socket.end();
+                  return;
+                }
+
+                if (method === 'OPTIONS') {
+                  socket.write('HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, HEAD, OPTIONS\r\nContent-Length: 0\r\n\r\n');
+                  socket.end();
+                  return;
+                }
+
+                if (urlPath === '/favicon.ico') {
+                  socket.write('HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n');
+                  socket.end();
+                  return;
+                }
+
+                if (urlPath === '/' || urlPath === '/index.html') {
+                  const html = this.generateHtmlPage(this.file);
+                  const htmlBuf = Buffer.from(html, 'utf8');
+                  const header = `HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: ${htmlBuf.length}\r\nConnection: close\r\n\r\n`;
+                  socket.write(header);
+                  if (method !== 'HEAD') {
+                    socket.write(htmlBuf);
+                  }
+                  socket.end();
+                  return;
+                }
+
+                if (urlPath === '/info') {
+                  const infoJson = JSON.stringify({
+                    name: this.file.name,
+                    size: this.file.size,
+                    type: this.file.type,
+                  });
+                  const infoBuf = Buffer.from(infoJson, 'utf8');
+                  const header = `HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: ${infoBuf.length}\r\nConnection: close\r\n\r\n`;
+                  socket.write(header);
+                  if (method !== 'HEAD') {
+                    socket.write(infoBuf);
+                  }
+                  socket.end();
+                  return;
+                }
+
+                if (urlPath === '/download' || urlPath === '/file') {
+                  this.connectedClients++;
+                  if (this.onClientConnected) this.onClientConnected(this.connectedClients);
+
+                  const header = `HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename="${encodeURIComponent(this.file.name)}"\r\nContent-Length: ${this.file.size}\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n`;
+                  socket.write(header);
+
+                  if (method === 'HEAD') {
+                    socket.end();
+                    return;
+                  }
+
+                  // Stream file in 64 KB chunks to prevent any memory spikes
+                  if (this.file.uri) {
+                    const CHUNK_SIZE = 64 * 1024;
+                    let position = 0;
+                    const fileSize = this.file.size;
+
+                    const sendNextChunk = async () => {
+                      if (position >= fileSize || !this.server) {
+                        socket.end();
+                        return;
+                      }
+                      const toRead = Math.min(CHUNK_SIZE, fileSize - position);
+                      try {
+                        const base64Data = await FileSystem.readAsStringAsync(this.file.uri, {
+                          encoding: FileSystem.EncodingType.Base64,
+                          position,
+                          length: toRead,
+                        });
+                        const chunk = Buffer.from(base64Data, 'base64');
+                        position += toRead;
+                        socket.write(chunk);
+                        setTimeout(sendNextChunk, 1);
+                      } catch (readErr) {
+                        console.warn('File chunk read error:', readErr);
+                        socket.end();
+                      }
+                    };
+                    sendNextChunk();
+                  } else if (this.file.data) {
+                    socket.write(this.file.data);
+                    socket.end();
+                  } else {
+                    socket.end();
+                  }
+                  return;
+                }
+
+                // Default 404 for unknown paths
                 socket.write('HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n');
                 socket.end();
-                return;
-              }
-
-              if (url === '/' || url === '/index.html') {
-                const html = this.generateHtmlPage(this.file);
-                const header = `HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: ${Buffer.byteLength(html)}\r\nConnection: close\r\n\r\n`;
-                socket.write(header + html);
-                socket.end();
-                return;
-              }
-
-              if (url === '/info') {
-                const info = JSON.stringify({
-                  name: this.file.name,
-                  size: this.file.size,
-                  type: this.file.type,
-                });
-                const header = `HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: ${Buffer.byteLength(info)}\r\nConnection: close\r\n\r\n`;
-                socket.write(header + info);
-                socket.end();
-                return;
-              }
-
-              if (url === '/download' || url === '/file') {
-                this.connectedClients++;
-                if (this.onClientConnected) this.onClientConnected(this.connectedClients);
-
-                const header = `HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename="${encodeURIComponent(this.file.name)}"\r\nContent-Length: ${this.file.size}\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n`;
-                socket.write(header);
-
-                // Send file content (if buffer available)
-                if (this.file.data) {
-                  socket.write(this.file.data);
-                  socket.end();
-                } else {
-                  socket.end();
-                }
+              } catch (reqErr) {
+                console.warn('Request handling error:', reqErr);
+                try { socket.end(); } catch (e) {}
               }
             });
+          });
+
+          this.server.on('error', err => {
+            console.warn('Server error:', err);
           });
 
           this.server.listen({ port, host: '0.0.0.0' }, () => {
             resolve(port);
           });
         } catch (e) {
+          console.error('TcpSocket createServer failed:', e);
           reject(e);
         }
       });
@@ -260,10 +293,19 @@ export class LocalServer {
   }
 
   stop() {
+    if (this.isElectron) {
+      try {
+        const { ipcRenderer } = window.require('electron');
+        ipcRenderer.invoke('stop-share-server');
+      } catch (e) {}
+    }
+
     if (this.server) {
-      if (typeof this.server.close === 'function') {
-        this.server.close();
-      }
+      try {
+        if (typeof this.server.close === 'function') {
+          this.server.close();
+        }
+      } catch (e) {}
       this.server = null;
     }
     this.connectedClients = 0;

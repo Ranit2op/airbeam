@@ -12,7 +12,6 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
 import * as Network from 'expo-network';
 import { QRCodeView } from '../components/QRCodeView';
 import { LocalServer } from '../services/LocalServer';
@@ -37,6 +36,17 @@ export function SendScreen({ onBack }) {
   const serverRef = useRef(new LocalServer());
 
   useEffect(() => {
+    // 1. Electron IP detection
+    if (typeof window !== 'undefined' && window.require) {
+      try {
+        const { ipcRenderer } = window.require('electron');
+        ipcRenderer.invoke('get-local-ip').then(ip => {
+          if (ip) setLocalIp(ip);
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
+    // 2. Mobile Expo IP detection
     Network.getIpAddressAsync()
       .then(ip => {
         if (ip) setLocalIp(ip);
@@ -52,10 +62,36 @@ export function SendScreen({ onBack }) {
     try {
       setIsLoading(true);
 
-      // On Web / Electron, use input file element for native speed & large files
+      // 1. If running inside Electron on Windows Desktop
+      if (typeof window !== 'undefined' && window.require) {
+        try {
+          const { ipcRenderer } = window.require('electron');
+          const res = await ipcRenderer.invoke('select-file');
+          if (res.canceled || !res.path) {
+            setIsLoading(false);
+            return;
+          }
+
+          if (res.size > MAX_FILE_SIZE) {
+            alert('File exceeds 1 GB limit! Please select a file under 1 GB.');
+            setIsLoading(false);
+            return;
+          }
+
+          startHosting(res);
+          return;
+        } catch (electronErr) {
+          console.warn('Native Electron picker error:', electronErr);
+        }
+      }
+
+      // 2. On standard Web / Browser
       if (Platform.OS === 'web') {
         const input = document.createElement('input');
         input.type = 'file';
+        input.oncancel = () => {
+          setIsLoading(false);
+        };
         input.onchange = async (e) => {
           const selectedFile = e.target.files[0];
           if (!selectedFile) {
@@ -76,9 +112,7 @@ export function SendScreen({ onBack }) {
             path: selectedFile.path || null,
           };
 
-          // If Electron, path is available directly on file
           if (!selectedFile.path) {
-            // Read as arrayBuffer for browser
             const buffer = await selectedFile.arrayBuffer();
             fileInfo.data = new Uint8Array(buffer);
           }
@@ -89,7 +123,7 @@ export function SendScreen({ onBack }) {
         return;
       }
 
-      // On Android / iOS
+      // 3. On Android / iOS Native
       const res = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
       });
@@ -133,7 +167,7 @@ export function SendScreen({ onBack }) {
         setClientsCount(count);
       };
 
-      await serverRef.current.start(8090);
+      const port = await serverRef.current.start(8090);
       setIsHosting(true);
     } catch (e) {
       console.error('Failed to start server:', e);
