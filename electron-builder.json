@@ -1,6 +1,6 @@
 {
-  "appId": "com.ranit.randrop",
-  "productName": "RanDrop",
+  "appId": "com.ranit.airbeam",
+  "productName": "AirBeam",
   "directories": {
     "output": "dist-desktop"
   },

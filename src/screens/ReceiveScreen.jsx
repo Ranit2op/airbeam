@@ -68,7 +68,7 @@ export function ReceiveScreen({ onBack }) {
       console.error('Failed to connect:', err);
       Alert.alert(
         'Connection Failed',
-        'Could not find RanDrop sender. Ensure both devices are connected to the same Wi-Fi / Hotspot.'
+        'Could not find AirBeam sender. Ensure both devices are connected to the same Wi-Fi / Hotspot.'
       );
     } finally {
       setIsConnecting(false);

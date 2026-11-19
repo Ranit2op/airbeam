@@ -61,7 +61,7 @@ export default function App() {
               resizeMode="contain"
             />
           </View>
-          <Text style={styles.splashTitle}>RanDrop</Text>
+          <Text style={styles.splashTitle}>AirBeam</Text>
           <Text style={styles.splashTagline}>Fast & Lossless Local Sharing</Text>
           <View style={styles.splashDots}>
             <View style={[styles.dot, styles.activeDot]} />

@@ -61,7 +61,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1080,
     height: 780,
-    title: 'RanDrop - Lossless Local Wi-Fi File Sharing',
+    title: 'AirBeam - Lossless Local Wi-Fi File Sharing',
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       nodeIntegration: true,

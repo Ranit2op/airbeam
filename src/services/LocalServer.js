@@ -30,7 +30,7 @@ export class LocalServer {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RanDrop - Fast & Lossless Sharing</title>
+  <title>AirBeam - Fast & Lossless Sharing</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     body {
@@ -108,7 +108,7 @@ export class LocalServer {
 <body>
   <div class="card">
     <div class="badge-icon">💧</div>
-    <h1>RanDrop</h1>
+    <h1>AirBeam</h1>
     <p class="subtitle">Lossless Local Wi-Fi Transfer</p>
     
     <div class="file-box">

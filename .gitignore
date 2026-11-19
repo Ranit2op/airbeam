@@ -7,6 +7,8 @@ web-build/
 .DS_Store
 android/app/build/
 android/.gradle/
+AirBeam*.exe
+AirBeam*.apk
 RanDrop*.exe
 RanDrop*.apk
 

@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "RanDrop",
-    "slug": "randrop",
+    "name": "AirBeam",
+    "slug": "airbeam",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "randrop",
+    "scheme": "airbeam",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/images/splash-icon.png",
@@ -17,7 +17,7 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundColor": "#0B0F19"
       },
-      "package": "com.ranit.randrop",
+      "package": "com.ranit.airbeam",
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.ACCESS_WIFI_STATE",

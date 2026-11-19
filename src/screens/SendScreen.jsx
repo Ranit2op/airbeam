@@ -104,7 +104,7 @@ export function SendScreen({ onBack }) {
       if (asset.size && asset.size > MAX_FILE_SIZE) {
         Alert.alert(
           'File Too Large',
-          'RanDrop supports up to 1 GB at a time to ensure maximum stability and lossless quality. Please select a file under 1 GB.'
+          'AirBeam supports up to 1 GB at a time to ensure maximum stability and lossless quality. Please select a file under 1 GB.'
         );
         setIsLoading(false);
         return;
@@ -237,7 +237,7 @@ export function SendScreen({ onBack }) {
             <View style={styles.qrCard}>
               <Text style={styles.qrHeaderTitle}>Scan to Download</Text>
               <Text style={styles.qrHeaderSubtitle}>
-                Scan with RanDrop or any Camera / Browser
+                Scan with AirBeam or any Camera / Browser
               </Text>
 
               <View style={styles.qrWrapper}>

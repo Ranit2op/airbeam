@@ -40,7 +40,7 @@ export function HomeScreen({ onSendPress, onReceivePress }) {
           </LinearGradient>
         </View>
 
-        <Text style={styles.title}>RanDrop</Text>
+        <Text style={styles.title}>AirBeam</Text>
         <Text style={styles.subtitle}>
           Lossless local Wi-Fi file sharing across mobile & PC with QR scan
         </Text>

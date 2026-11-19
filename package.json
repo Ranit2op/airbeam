@@ -1,7 +1,7 @@
 {
-  "name": "randrop",
+  "name": "airbeam",
   "version": "1.0.0",
-  "description": "RanDrop - Blazing-fast lossless local Wi-Fi file sharing across Android and Windows with QR Code multi-device receive",
+  "description": "AirBeam - Blazing-fast lossless local Wi-Fi file sharing across Android and Windows with QR Code multi-device receive",
   "author": "Ranit Saha <saharanit196@gmail.com>",
   "main": "index.js",
   "dependencies": {
