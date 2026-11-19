@@ -13,17 +13,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
-
-let CameraView = null;
-let useCameraPermissions = null;
-
-try {
-  const cameraPkg = require('expo-camera');
-  CameraView = cameraPkg.CameraView;
-  useCameraPermissions = cameraPkg.useCameraPermissions;
-} catch (e) {
-  console.warn('expo-camera not loaded:', e);
-}
+import { CameraView, useCameraPermissions } from 'expo-camera';
 
 function formatBytes(bytes) {
   if (!bytes || bytes === 0) return '0 Bytes';
@@ -43,9 +33,7 @@ export function ReceiveScreen({ onBack }) {
   const [manualAddress, setManualAddress] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
 
-  const [permission, requestPermission] = useCameraPermissions
-    ? useCameraPermissions()
-    : [null, () => {}];
+  const [permission, requestPermission] = useCameraPermissions();
 
   useEffect(() => {
     if (permission && !permission.granted && permission.canAskAgain) {
@@ -58,10 +46,11 @@ export function ReceiveScreen({ onBack }) {
     if (!data) return;
 
     let scannedUrl = data.trim();
-    if (scannedUrl.startsWith('http://') || scannedUrl.startsWith('https://')) {
-      setHasScanned(true);
-      connectToSender(scannedUrl);
+    if (!scannedUrl.startsWith('http://') && !scannedUrl.startsWith('https://')) {
+      scannedUrl = 'http://' + scannedUrl;
     }
+    setHasScanned(true);
+    connectToSender(scannedUrl);
   };
 
   const connectToSender = async (targetUrl) => {
@@ -176,7 +165,8 @@ export function ReceiveScreen({ onBack }) {
 
       {/* Main Content Area */}
       {!fileInfo && !downloadCompleted ? (
-        showManualInput || (CameraView && permission && !permission.granted) ? (
+        showManualInput ? (
+          /* Manual Input Screen */
           <View style={styles.manualContainer}>
             <LinearGradient
               colors={['#10B981', '#059669']}
@@ -189,7 +179,7 @@ export function ReceiveScreen({ onBack }) {
 
             <Text style={styles.manualTitle}>Manual Connect</Text>
             <Text style={styles.manualSubtitle}>
-              Enter the sender's local Wi-Fi address (or tap the camera icon above to scan QR).
+              Enter sender local address (e.g. 192.168.1.15:8090) or tap below to scan QR.
             </Text>
 
             <View style={styles.inputWrapper}>
@@ -226,29 +216,70 @@ export function ReceiveScreen({ onBack }) {
               </LinearGradient>
             </TouchableOpacity>
 
-            {permission && !permission.granted && (
-              <TouchableOpacity
-                onPress={requestPermission}
-                style={styles.permissionPromptBtn}
+            <TouchableOpacity
+              onPress={() => setShowManualInput(false)}
+              style={styles.permissionPromptBtn}
+            >
+              <Ionicons name="camera" size={18} color="#00D2FF" />
+              <Text style={styles.permissionPromptText}>Switch to Live Camera QR Scanner</Text>
+            </TouchableOpacity>
+          </View>
+        ) : !permission ? (
+          /* Loading Camera Permissions */
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#00D2FF" />
+            <Text style={{ color: '#8E9BAE', marginTop: 16, fontSize: 15 }}>Starting Camera...</Text>
+          </View>
+        ) : !permission.granted ? (
+          /* Permission Request View */
+          <View style={styles.manualContainer}>
+            <LinearGradient
+              colors={['#00D2FF', '#0066FF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.bigIconCircle}
+            >
+              <Ionicons name="camera" size={44} color="#FFFFFF" />
+            </LinearGradient>
+
+            <Text style={styles.manualTitle}>Camera Access Required</Text>
+            <Text style={styles.manualSubtitle}>
+              AirBeam needs camera access to scan QR codes for instant peer-to-peer file transfer.
+            </Text>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={requestPermission}
+              style={styles.connectBtnTouchable}
+            >
+              <LinearGradient
+                colors={['#00D2FF', '#0066FF']}
+                style={styles.connectBtn}
               >
-                <Ionicons name="camera" size={16} color="#00D2FF" />
-                <Text style={styles.permissionPromptText}>Enable Camera Scanner</Text>
-              </TouchableOpacity>
-            )}
+                <Ionicons name="camera" size={20} color="#FFFFFF" />
+                <Text style={styles.connectBtnText}>Allow Camera Access</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setShowManualInput(true)}
+              style={styles.permissionPromptBtn}
+            >
+              <Ionicons name="keypad" size={16} color="#8E9BAE" />
+              <Text style={{ color: '#8E9BAE', fontSize: 14 }}>Or Connect Manually by IP</Text>
+            </TouchableOpacity>
           </View>
         ) : (
+          /* Live Camera Viewfinder */
           <View style={styles.scannerWrapper}>
-            {/* Live Camera Scanner View */}
-            {CameraView && (
-              <CameraView
-                style={StyleSheet.absoluteFillObject}
-                facing="back"
-                barcodeScannerSettings={{
-                  barcodeTypes: ['qr'],
-                }}
-                onBarcodeScanned={hasScanned ? undefined : handleBarCodeScanned}
-              />
-            )}
+            <CameraView
+              style={StyleSheet.absoluteFillObject}
+              facing="back"
+              barcodeScannerSettings={{
+                barcodeTypes: ['qr'],
+              }}
+              onBarcodeScanned={hasScanned ? undefined : handleBarCodeScanned}
+            />
 
             {/* Viewfinder Target Overlay */}
             <View style={styles.overlayContainer}>
@@ -465,7 +496,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
-    shadowColor: '#10B981',
+    shadowColor: '#00D2FF',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
     shadowRadius: 16,
@@ -504,7 +535,7 @@ const styles = StyleSheet.create({
   connectBtnTouchable: {
     width: '100%',
     borderRadius: 18,
-    shadowColor: '#10B981',
+    shadowColor: '#00D2FF',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 14,
