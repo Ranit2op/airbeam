@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+dist/
+dist-desktop/
+web-build/
+*.log
+.DS_Store
+android/app/build/
+android/.gradle/
+RanDrop*.exe
+RanDrop*.apk
+
