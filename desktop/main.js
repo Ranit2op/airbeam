@@ -135,6 +135,18 @@ function generateWebDownloadPage(file) {
     <a href="/download" class="btn" download="${file.name}">Download File ⚡</a>
     <p class="footer">Transferred directly over local network. No internet data used.</p>
   </div>
+  <script>
+    setTimeout(function() {
+      try {
+        var a = document.createElement('a');
+        a.href = '/download';
+        a.download = "${file.name}";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } catch (e) {}
+    }, 600);
+  </script>
 </body>
 </html>`;
 }
